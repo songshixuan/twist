@@ -5,22 +5,31 @@ import (
 	"fmt"
 
 	"github.com/segmentio/kafka-go"
+	"github.com/songshixuan/twist.git/pkg/kfk"
 )
 
 //install lib(match versition) config
 func main() {
 	topic := "my-topic2"
 	partition := 0
-
-	conn, e := kafka.DialLeader(context.Background(), "tcp", "localhost:32770", topic, partition)
+	kfk.KfkSend("127.0.0.1:9092", topic, partition)
+	fmt.Println("read--")
+	//read
+	conn, e := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
 	if e != nil {
-		fmt.Println(e.Error())
+		panic(e)
 	}
-	//conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	fmt.Println("writes")
-	i, e := conn.Write(
-		[]byte("one!"),
-	)
-	fmt.Println(i, e)
+	batch := conn.ReadBatch(10e3, 1e6) // fetch 10KB min, 1MB max
+
+	b := make([]byte, 10e3) // 10KB max per message
+	for {
+		_, err := batch.Read(b)
+		if err != nil {
+			break
+		}
+		fmt.Println(string(b))
+	}
+
+	batch.Close()
 	conn.Close()
 }
