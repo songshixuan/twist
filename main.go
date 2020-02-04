@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/segmentio/kafka-go"
-	"github.com/songshixuan/twist.git/pkg/kfk"
+	"github.com/songshixuan/twist/pkg/kfk"
 )
 
 //install lib(match versition) config
