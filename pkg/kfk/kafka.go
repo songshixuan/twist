@@ -8,37 +8,60 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-//KfkSend: send test msg to server
-func KfkSend(server string, topic string, partition int) error {
-	conn, e := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
-	if e != nil {
-		fmt.Println(e.Error())
-		return e
+type KafkaProducer struct {
+	Server    string
+	Topic     string
+	Partition int
+}
+type KafkaConsumer struct {
+	Server    string
+	Topic     string
+	Partition int
+}
+
+func (consumer *KafkaConsumer) Consume() error {
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:  []string{consumer.Server},
+		Topic:    consumer.Topic,
+		MinBytes: 0,   // 0KB
+		MaxBytes: 1e6, // 1MB
+	})
+
+	for {
+		m, err := r.ReadMessage(context.Background())
+		if err != nil {
+			break
+		}
+		fmt.Printf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
 	}
-	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	_, e = conn.WriteMessages(
-		kafka.Message{Value: []byte("one!")},
-		kafka.Message{Value: []byte("two!")},
-		kafka.Message{Value: []byte("three!")},
+
+	r.Close()
+	return nil
+}
+
+//KfkSend: send test msg to server
+func (producer *KafkaProducer) KfkSend(msgs []string) error {
+	conn, e := kafka.DialLeader(context.Background(), "tcp",
+		producer.Server,
+		producer.Topic,
+		producer.Partition,
 	)
 	if e != nil {
 		fmt.Println(e.Error())
 		return e
 	}
-	fmt.Println("try read")
-	batch := conn.ReadBatch(0, 1e6) // fetch 0 min, 1MB max
-
-	b := make([]byte, 10e3) // 10KB max per message
-	for {
-		_, err := batch.Read(b)
-		if err != nil {
-			break
-		}
-		fmt.Println(string(b))
+	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	kafkaMsgs := make([]kafka.Message, 0, len(msgs))
+	for _, m := range msgs {
+		kafkaMsgs = append(kafkaMsgs, kafka.Message{Value: []byte(m)})
+	}
+	_, e = conn.WriteMessages(
+		kafkaMsgs...,
+	)
+	if e != nil {
+		fmt.Println(e.Error())
+		return e
 	}
 
-	batch.Close()
-
-	conn.Close()
 	return nil
 }
